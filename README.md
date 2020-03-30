@@ -1,6 +1,64 @@
-[![Build Status](https://travis-ci.org/simplesteph/kafka-stack-docker-compose.svg?branch=master)](https://travis-ci.org/simplesteph/kafka-stack-docker-compose)
+**Reader**
+
+A Reader is another concept exposed by the kafka-go package, which intends to make it simpler to implement the typical use case of consuming from a single topic-partition pair. A Reader also automatically handles reconnections and offset management, and exposes an API that supports asynchronous cancellations and timeouts using Go contexts.
+
+```
+// make a new reader that consumes from topic-A, partition 0, at offset 42
+r := kafka.NewReader(kafka.ReaderConfig{
+    Brokers:   []string{"localhost:9092"},
+    Topic:     "topic-A",
+    Partition: 0,
+    MinBytes:  10e3, // 10KB
+    MaxBytes:  10e6, // 10MB
+})
+r.SetOffset(42)
+
+for {
+    m, err := r.ReadMessage(context.Background())
+    if err != nil {
+        break
+    }
+    fmt.Printf("message at offset %d: %s = %s\n", m.Offset, string(m.Key), string(m.Value))
+}
+
+r.Close()
+```
 
 
+**Writer**
+
+To produce messages to Kafka, a program may use the low-level Conn API, but the package also provides a higher level Writer type which is more appropriate to use in most cases as it provides additional features:
+
+Automatic retries and reconnections on errors.
+Configurable distribution of messages across available partitions.
+Synchronous or asynchronous writes of messages to Kafka.
+Asynchronous cancellation using contexts.
+Flushing of pending messages on close to support graceful shutdowns.
+```
+// make a writer that produces to topic-A, using the least-bytes distribution
+w := kafka.NewWriter(kafka.WriterConfig{
+	Brokers: []string{"localhost:9092"},
+	Topic:   "my-topic",
+	Balancer: &kafka.LeastBytes{},
+})
+
+w.WriteMessages(context.Background(),
+	kafka.Message{		
+		Value: []byte("Hello World!"),
+	},
+	kafka.Message{
+		Key:   []byte("Key-A"),
+		Value: []byte("One!"),
+	},
+	kafka.Message{
+		Key:   []byte("Key-B"),
+		Value: []byte("Two!"),
+	},
+)
+
+w.Close()
+
+```
 # kafka-stack-docker-compose
 
 This replicates as well as possible real deployment configurations, where you have your zookeeper servers and kafka servers actually all distinct from each other. This solves all the networking hurdles that comes with Docker and docker-compose, and is compatible cross platform.
